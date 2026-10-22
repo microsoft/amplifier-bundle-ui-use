@@ -1,0 +1,10 @@
+bundle:
+  name: ui-use-computer
+  version: 0.1.0
+  description: Optional canonical desktop executor for UI-use.
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-bundle-computer-use@main#subdirectory=behaviors/computer-use.yaml
+tools:
+  - module: tool-computer-use
+    config:
+      observed_control: true

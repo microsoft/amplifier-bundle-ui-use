@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amplifier-bundle-ui-use"
+version = "0.1.0.dev0"
+description = "Bounded browser and computer controllers with ordinary or optional decision selection"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+license = "MIT"
+
+[project.optional-dependencies]
+decisions = ["amplifier-lib-decisions @ git+https://github.com/microsoft/amplifier-lib-decisions@main"]
+browser = ["playwright>=1.50,<2"]
+test = ["pytest>=8", "pytest-asyncio>=0.24", "aiohttp>=3.10", "playwright>=1.50,<2"]
+
+[project.entry-points."amplifier.modules"]
+tool-ui-use = "amplifier_module_tool_ui_use:mount"
+
+[tool.hatch.build.targets.wheel]
+packages = ["amplifier_ui_use", "amplifier_module_tool_ui_use"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.urls]
+Repository = "https://github.com/microsoft/amplifier-bundle-ui-use"

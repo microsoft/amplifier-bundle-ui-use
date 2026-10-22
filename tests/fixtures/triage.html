@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Support triage — decision model exercise</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#e7edf7;background:#101725;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0}main{max-width:1160px;margin:auto;padding:24px}
+header,.toolbar,.actions{display:flex;align-items:center;justify-content:space-between;gap:14px}
+h1{font-size:28px;margin:6px 0}h2{font-size:22px;margin:12px 0}.muted{color:#a7b5cb;font-size:14px}
+.panel{background:#192338;border:1px solid #33425d;border-radius:12px;padding:20px;margin:18px 0}
+button,input,textarea,select{font:inherit;border:1px solid #526683;border-radius:7px;padding:9px 12px;background:#24324b;color:#fff}
+button{cursor:pointer}button:hover{background:#364a6a}button.primary{background:#4260c4}button:disabled{opacity:.4;cursor:default}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #33425d}
+th{color:#adbfdb;font-size:12px;text-transform:uppercase}td button{white-space:nowrap;font-size:13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:grid;gap:6px;font-size:14px}
+textarea{width:100%;min-height:65px}.notice{padding:12px 16px;background:#263854;border-radius:8px;margin:12px 0}
+.success{background:#173e36;color:#a8f0d3}.error{background:#4b2531;color:#ffc3d1}ul{line-height:1.6}
+code{color:#b8d1ff}.actions{justify-content:flex-end;margin-top:16px}.facts{display:flex;gap:22px;flex-wrap:wrap}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.table-wrap{overflow:auto}header{align-items:flex-start}main{padding:12px}}
+</style>
+</head>
+<body><main id="app"></main>
+<script>
+'use strict';
+const KEY='amplifier-triage-exercise-v1';
+const seed=[
+ {id:'INC-1041',customer:'Atlas Labs',plan:'Enterprise',issue:'Service outage',sla:1},
+ {id:'INC-1044',customer:'Birch Media',plan:'Standard',issue:'Service outage',sla:1},
+ {id:'INC-1042',customer:'Cedar Health',plan:'Enterprise',issue:'Billing',sla:4},
+ {id:'INC-1045',customer:'Orbit Tools',plan:'Enterprise',issue:'Billing',sla:8},
+ {id:'INC-1043',customer:'Northstar AI',plan:'Enterprise',issue:'Login/access',sla:2},
+ {id:'INC-1046',customer:'Vale Labs',plan:'Enterprise',issue:'Login/access',sla:1,status:'Closed'}
+].map(t=>({...t,status:t.status||'Open',team:'Unassigned',priority:'P3',due:'Unscheduled',note:''}));
+const expected={
+ 'INC-1041':{status:'In progress',team:'Platform',priority:'P1',due:'Today',note:'Atlas Labs / Platform / P1'},
+ 'INC-1042':{status:'In progress',team:'Finance',priority:'P2',due:'Next business day',note:'Cedar Health / Finance / P2'},
+ 'INC-1043':{status:'In progress',team:'Identity',priority:'P1',due:'Today',note:'Northstar AI / Identity / P1'}
+};
+const fresh=()=>({tickets:structuredClone(seed),audit:[],view:'queue',filter:'All',saved:'',validated:false,completed:false});
+let state;
+try{state=JSON.parse(localStorage.getItem(KEY))||fresh();if(!Array.isArray(state.tickets)||state.tickets.length!==seed.length)state=fresh()}catch{state=fresh()}
+let selected=null,error='';
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const persist=()=>localStorage.setItem(KEY,JSON.stringify(state));
+function changes(){return state.tickets.filter(t=>!same(t,seed.find(s=>s.id===t.id)))}
+function validate(){
+ const problems=[];
+ for(const original of seed){
+  const actual=state.tickets.find(t=>t.id===original.id),target=expected[original.id];
+  if(!actual){problems.push(`${original.id} is missing`);continue}
+  if(target){
+   for(const [key,value] of Object.entries(target))if(actual[key]!==value)problems.push(`${original.id}: ${key} must be ${value}`);
+  }else if(!same(actual,original))problems.push(`${original.id} must remain unchanged`);
+ }
+ return problems;
+}
+function selectField(label,key,options,value){return `<label>${label}<select name="${key}" aria-label="${label}">${options.map(option=>`<option${option===value?' selected':''}>${esc(option)}</option>`).join('')}</select></label>`}
+function header(){return `<header><div><div class="muted">DECISION MODEL LAB · ISOLATED EXERCISE</div><h1>Support triage desk</h1><div class="muted">Synthetic tickets. Changes stay in this browser context.</div></div><button id="reset">Reset this exercise</button></header>`}
+function queue(){
+ const rows=state.tickets.filter(t=>state.filter==='All'||t.status===state.filter);
+ return `<section class="panel"><div class="toolbar"><h2>Ticket queue</h2><label>Queue filter<select id="filter">${['All','Open','In progress','Closed'].map(o=>`<option${o===state.filter?' selected':''}>${o}</option>`).join('')}</select></label></div>
+ <p class="muted">${state.tickets.length} total tickets · ${changes().length} changed · ${state.audit.length} saved updates</p>
+ ${state.saved?`<p class="notice" role="status">Saved ${esc(state.saved)}. The update is retained.</p>`:''}
+ <div class="table-wrap"><table><thead><tr><th>Ticket / customer</th><th>Plan</th><th>Issue / SLA</th><th>Status</th><th>Assignment</th><th>Action</th></tr></thead><tbody>
+ ${rows.map(t=>`<tr><td><strong>${t.id}</strong><br>${esc(t.customer)}</td><td>${t.plan}</td><td>${esc(t.issue)}<br>${t.sla}h remaining</td><td>${t.status}</td><td>${t.team}<br>${t.priority} · ${t.due}</td><td><button data-open="${t.id}" aria-label="Open ${t.id} ${esc(t.customer)}">Open ${t.id}</button></td></tr>`).join('')}
+ </tbody></table></div><div class="actions"><button class="primary" id="review">Review batch</button></div></section>`;
+}
+function editor(){
+ const t=state.tickets.find(t=>t.id===selected);
+ if(!t){state.view='queue';return queue()}
+ return `<section class="panel"><h2>${t.id} · ${esc(t.customer)}</h2><p class="facts"><span>Plan: <strong>${t.plan}</strong></span><span>Issue: <strong>${esc(t.issue)}</strong></span><span>SLA: <strong>${t.sla} hours remaining</strong></span></p>
+ <form id="ticket"><div class="grid">
+ ${selectField('Status','status',['Open','In progress','Closed'],t.status)}
+ ${selectField('Owning team','team',['Unassigned','Platform','Finance','Identity'],t.team)}
+ ${selectField('Priority','priority',['P3','P2','P1'],t.priority)}
+ ${selectField('Due','due',['Unscheduled','Today','Next business day'],t.due)}
+ </div><p><label>Triage note<textarea name="note" aria-label="Triage note" placeholder="Customer / Team / Priority">${esc(t.note)}</textarea></label></p>
+ ${error?`<p class="notice error" role="alert">${esc(error)}</p>`:''}
+ <div class="actions"><button type="button" id="cancel">Cancel changes</button><button class="primary" type="submit">Save ${t.id}</button></div></form></section>`;
+}
+function review(){
+ const changed=changes(),unchanged=seed.filter(t=>!changed.some(c=>c.id===t.id));
+ return `<section class="panel"><h2>Review triage batch</h2><p>${changed.length} changed tickets · ${unchanged.length} unchanged tickets · ${state.audit.length} saved updates</p>
+ <div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Status</th><th>Team / priority</th><th>Due</th><th>Note</th></tr></thead><tbody>${changed.map(t=>`<tr><td>${t.id}</td><td>${t.status}</td><td>${t.team} / ${t.priority}</td><td>${t.due}</td><td>${esc(t.note)}</td></tr>`).join('')}</tbody></table></div>
+ <p>Unchanged: ${unchanged.map(t=>t.id+' '+t.customer).join('; ')||'None'}</p>
+ ${error?`<div class="notice error" role="alert"><strong>Validation needs attention</strong><ul>${error.split('\n').map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+ ${state.validated?'<p class="notice success" role="status">Validation passed: all 3 eligible tickets match the rules and all 3 excluded tickets are unchanged.</p>':''}
+ <div class="actions"><button id="back">Back to queue</button><button id="validate">Validate changes</button><button class="primary" id="confirm"${state.validated?'':' disabled'}>Confirm batch</button></div></section>`;
+}
+function completion(){return `<section class="panel"><h2 class="notice success">Triage batch complete: 3 updated, 3 unchanged.</h2><p>All required fields, notes, and untouched records passed independent validation.</p><table><thead><tr><th>Ticket</th><th>Team</th><th>Priority</th><th>Due</th><th>Note</th></tr></thead><tbody>${changes().map(t=>`<tr><td>${t.id}</td><td>${t.team}</td><td>${t.priority}</td><td>${t.due}</td><td>${esc(t.note)}</td></tr>`).join('')}</tbody></table><p>Unchanged: INC-1044, INC-1045, INC-1046.</p><p class="muted">Saved updates: ${state.audit.length}. This exercise made no external changes.</p></section>`}
+function render(){
+ document.querySelector('#app').innerHTML=header()+(state.completed?completion():state.view==='edit'?editor():state.view==='review'?review():queue());
+ document.querySelector('#reset').onclick=()=>{state=fresh();selected=null;error='';persist();render();scrollTo(0,0)};
+ const on=(id,event,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener(event,fn)};
+ on('filter','change',e=>{state.filter=e.target.value;persist();render()});
+ for(const b of document.querySelectorAll('[data-open]'))b.onclick=()=>{selected=b.dataset.open;state.view='edit';error='';render();scrollTo(0,0)};
+ on('cancel','click',()=>{state.view='queue';error='';render();scrollTo(0,0)});
+ on('ticket','submit',e=>{
+  e.preventDefault();const draft=Object.fromEntries(new FormData(e.target));
+  if(!draft.note.trim()){error='A triage note is required before saving.';document.querySelector('#ticket').insertAdjacentHTML('afterbegin','<p class="notice error" role="alert">A triage note is required before saving.</p>');return}
+  const index=state.tickets.findIndex(t=>t.id===selected);const before=structuredClone(state.tickets[index]);
+  state.tickets[index]={...before,...draft};state.audit.push({id:selected,before,after:structuredClone(state.tickets[index])});
+  state.saved=selected;state.validated=false;state.view='queue';error='';persist();render();scrollTo(0,0);
+ });
+ on('review','click',()=>{state.view='review';error='';render();scrollTo(0,0)});
+ on('back','click',()=>{state.view='queue';error='';render();scrollTo(0,0)});
+ on('validate','click',()=>{const problems=validate();state.validated=problems.length===0;error=problems.join('\n');persist();render();scrollTo(0,0)});
+ on('confirm','click',()=>{const problems=validate();if(problems.length){state.validated=false;error=problems.join('\n')}else{state.completed=true;error=''}persist();render();scrollTo(0,0)});
+}
+render();
+</script>
+</body></html>

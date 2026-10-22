@@ -1,0 +1,19 @@
+bundle:
+  name: ui-use-behavior
+  version: 0.1.0
+  description: Bounded UI tasks; preserves the host runtime and uses its ordinary model by default.
+
+tools:
+  - module: tool-ui-use
+    source: ../
+    config:
+      programmatic_dispatch: true
+      selection:
+        browser:
+          mode: standard
+        computer:
+          mode: standard
+
+context:
+  include:
+    - ui-use-behavior:../context/ui-use.md

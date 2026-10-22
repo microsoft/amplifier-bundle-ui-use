@@ -1,0 +1,13 @@
+First use the browser tool to open [fixture URL]. Then use UI use with its configured default selection to complete this support-triage batch.
+
+Only update tickets that are Open, have an Enterprise plan, and have 4 hours or less remaining on their SLA. Leave every other ticket unchanged.
+
+For each eligible ticket:
+- Set Status to In progress.
+- Route Service outage to Platform, Billing to Finance, and Login/access to Identity.
+- If the SLA is 2 hours or less, set Priority to P1 and Due to Today. Otherwise set Priority to P2 and Due to Next business day.
+- Set the triage note to exactly "Customer / Team / Priority", substituting that ticket's values. Save the ticket and verify the visible "Saved <ticket ID>" confirmation before moving on.
+
+Then review the batch, validate the changes, correct any validation errors, and confirm it. Verify the page says "Triage batch complete: 3 updated, 3 unchanged." Report which tickets changed, their assignments, and which tickets you left alone.
+
+Use only browser and ui_use tools. Work in bounded stages with up to 24 steps per ui_use call; if a step budget is reached, continue from the saved state. Stop and report an unknown or denied action rather than repeating it. Do not use code, APIs, or direct storage access to do the task.
