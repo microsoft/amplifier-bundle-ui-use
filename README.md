@@ -44,10 +44,9 @@ amplifier bundle use anchors
 amplifier bundle add git+https://github.com/microsoft/amplifier-bundle-ui-use@main#subdirectory=behaviors/ui-use.yaml --app
 ```
 
-Development acceptance can use the behavior's absolute local file URI and explicit
-module source overrides. The proposed [Work integration](https://github.com/microsoft/amplifier-bundle-work/pull/13)
-adds this behavior once to the main work bundle; work-amp-dev inherits it after
-that change is accepted. The behavior selects no orchestrator, context or
+The [Work integration](https://github.com/microsoft/amplifier-bundle-work/pull/13)
+includes this behavior once in the main Work bundle; work-amp-dev inherits it.
+The behavior selects no orchestrator, context or
 provider. Its module declares `ui_use` as a bounded programmatic caller for only
 `browser` and `computer`; explicit host dispatch restrictions still win.
 The adapter binds `tools.dispatch`, so
@@ -110,13 +109,12 @@ keeps transport, authentication and model configuration with that package and
 works through the existing hook lifecycle without a Core change. Keep an ordinary
 chat provider for planning, text entry and fallback.
 
-Hook support is proposed in [Jev #1](https://github.com/microsoft/amplifier-module-provider-jev/pull/1),
+Hook support is available in [Jev #1](https://github.com/microsoft/amplifier-module-provider-jev/pull/1),
 [local decisions #1](https://github.com/microsoft/amplifier-module-provider-local-decisions/pull/1)
 and [Azure #45](https://github.com/microsoft/amplifier-module-provider-azure-openai/pull/45),
 using [the shared lifecycle helper](https://github.com/microsoft/amplifier-lib-decisions/pull/2).
-Until accepted, testing must select those exact candidate sources; current `main`
-does not yet provide the new hooks. Once the hook-enabled Jev adapter is accepted
-and installed, an explicit CLI or bundle composition can use:
+These changes are merged to the canonical repositories' `main` branches. After
+installing the hook-enabled Jev adapter, an explicit CLI or bundle composition can use:
 
 ```yaml
 hooks:
@@ -157,8 +155,7 @@ cancellation or uncertain cleanup must stop initialization. Once mounted, an
 unavailable decision answer can use the controller's ordinary fallback. A possibly
 executed browser or desktop action is never replayed under another model.
 
-The hook-enabled adapter changes and Work integration require their own accepted
-revisions. Installing an older adapter does not provide these entrypoints. Hosts
+Installing an older adapter does not provide these hook entrypoints. Hosts
 should report unavailable support instead of treating a rejected provider mount
 as successful decision setup.
 
@@ -177,7 +174,7 @@ The base behavior does not install a desktop executor. A host with a canonical
 `computer` tool can enable its `observed_control` option, or compose this bundle's
 separate `behaviors/computer.yaml`, which includes canonical computer-use and
 enables that option. Adding Work alone does not grant desktop access. The initial
-observed lane is local X11 OCR, click, typing, key and scroll actions, proposed in
+observed lane is local X11 OCR, click, typing, key and scroll actions, added in
 [Computer Use #31](https://github.com/microsoft/amplifier-bundle-computer-use/pull/31). OCR
 requires Tesseract; labels are regions, not accessibility controls. Both selectors
 revalidate the observed target after human approval; reading time alone does not
