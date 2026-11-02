@@ -45,8 +45,9 @@ amplifier bundle add git+https://github.com/microsoft/amplifier-bundle-ui-use@ma
 ```
 
 Development acceptance can use the behavior's absolute local file URI and explicit
-module source overrides. Work's main bundle includes this behavior
-once; work-amp-dev inherits it. The behavior selects no orchestrator, context or
+module source overrides. The proposed [Work integration](https://github.com/microsoft/amplifier-bundle-work/pull/13)
+adds this behavior once to the main work bundle; work-amp-dev inherits it after
+that change is accepted. The behavior selects no orchestrator, context or
 provider. Its module declares `ui_use` as a bounded programmatic caller for only
 `browser` and `computer`; explicit host dispatch restrictions still win.
 The adapter binds `tools.dispatch`, so
@@ -90,15 +91,76 @@ tools:
 
 Explicit decision selection uses `{mode: decision, backend: selection,
 allow_external_state: true}` after a provider registers that named capability.
-OpenAI and Azure OpenAI expose decisions from their existing provider modules;
-the Jev provider adds the new vendor. Install each selected provider’s `decisions`
-extra where offered. All three use `amplifier-lib-decisions`; no decision bundle
+OpenAI and Azure OpenAI expose decisions alongside chat from their existing
+provider modules. Jev and local inference services provide decision-only accounts.
+Install each selected provider’s `decisions`
+extra where offered. These adapters use `amplifier-lib-decisions`; no decision bundle
 or duplicate credential configuration is needed. For example, an OpenAI account
 can add `decisions: {enabled: true, backends: {selection: {enabled: true,
 model: gpt-6-luna}}}`. Multiple named models share the account.
 The tool's `mode: standard` argument always permits an ordinary run.
 Requesting decision mode cannot activate an unconfigured backend. Keys, metadata
 and installed packages never change the default.
+
+### Decision-only accounts on Core 2.0.2
+
+Core's ordinary provider lifecycle requires a chat-provider mount. A decision-only
+account therefore uses a real hook entrypoint from its provider package. This
+keeps transport, authentication and model configuration with that package and
+works through the existing hook lifecycle without a Core change. Keep an ordinary
+chat provider for planning, text entry and fallback.
+
+Hook support is proposed in [Jev #1](https://github.com/microsoft/amplifier-module-provider-jev/pull/1),
+[local decisions #1](https://github.com/microsoft/amplifier-module-provider-local-decisions/pull/1)
+and [Azure #45](https://github.com/microsoft/amplifier-module-provider-azure-openai/pull/45),
+using [the shared lifecycle helper](https://github.com/microsoft/amplifier-lib-decisions/pull/2).
+Until accepted, testing must select those exact candidate sources; current `main`
+does not yet provide the new hooks. Once the hook-enabled Jev adapter is accepted
+and installed, an explicit CLI or bundle composition can use:
+
+```yaml
+hooks:
+  - module: hooks-jev-decisions
+    source: git+https://github.com/microsoft/amplifier-module-provider-jev@main
+    config:
+      api_key: ${TYPESAFE_API_KEY}
+      decisions:
+        enabled: true
+        backends:
+          jev-ui:
+            enabled: true
+            model: jev-1.14.0
+tools:
+  - module: tool-ui-use
+    config:
+      selection:
+        browser:
+          mode: decision
+          backend: jev-ui
+          allow_external_state: true
+```
+
+The corresponding local entrypoint is `hooks-local-decisions`. Follow its provider
+documentation for the endpoint, token and model configuration. Azure's separate
+decision-only entrypoint applies only to an account explicitly configured without
+chat; ordinary Azure and OpenAI accounts retain their provider mounts.
+
+A host with a saved-account setup UI can translate that selected account into its
+package-declared hook. The host must preserve the account's exact source and
+credential binding through children and resume. It must not interpret a hook name
+as permission to borrow another account. Generic CLI users can configure hooks
+directly; the bundle does not add an application-specific account store.
+
+Hooks are an optional capability, not an alternate execution authority. A failed
+mount must unwind its registrations before a host accepts ordinary fallback;
+cancellation or uncertain cleanup must stop initialization. Once mounted, an
+unavailable decision answer can use the controller's ordinary fallback. A possibly
+executed browser or desktop action is never replayed under another model.
+
+The hook-enabled adapter changes and Work integration require their own accepted
+revisions. Installing an older adapter does not provide these entrypoints. Hosts
+should report unavailable support instead of treating a rejected provider mount
+as successful decision setup.
 
 When the host sets `browser.allow_requested_origins: true`, opening a new origin
 asks for exact URL and origin permission before adding it to this conversation’s
@@ -115,7 +177,8 @@ The base behavior does not install a desktop executor. A host with a canonical
 `computer` tool can enable its `observed_control` option, or compose this bundle's
 separate `behaviors/computer.yaml`, which includes canonical computer-use and
 enables that option. Adding Work alone does not grant desktop access. The initial
-observed lane is local X11 OCR and click/wait only. OCR
+observed lane is local X11 OCR, click, typing, key and scroll actions, proposed in
+[Computer Use #31](https://github.com/microsoft/amplifier-bundle-computer-use/pull/31). OCR
 requires Tesseract; labels are regions, not accessibility controls. Both selectors
 revalidate the observed target after human approval; reading time alone does not
 expire an unchanged target. Every receipt identifies the configured selector,
