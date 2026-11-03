@@ -4,7 +4,7 @@ import json
 
 from amplifier_core import ToolResult
 from amplifier_ui_use import Controller, StandardSelector, selector_for
-from amplifier_ui_use.controller import verify_conditions
+from amplifier_ui_use.controller import valid_conditions, verify_conditions
 
 
 class BrowserTool:
@@ -73,7 +73,7 @@ class UIUseTool:
                 + json.dumps(defaults) + ". Omit mode to use these defaults. Choose an override only when the user requests it or recovery needs it.")
     input_schema = {"type": "object", "properties": {
         "task": {"type": "string"}, "surface": {"type": "string", "enum": ["browser", "computer"]},
-        "success": {"type": "object", "description": "Observable expected text, exact URL, and/or field {name,value}. Never infer completion from a DONE vote."},
+        "success": {"type": "object", "description": "All supplied conditions must match: text (substring), url (exact), and/or fields [{name,value?,checked?}]. Each field needs value or checked; checked is true, false, or mixed. Names must identify a unique visible control. Singular field {name,value?,checked?} also works. Never infer completion from a DONE vote."},
         "mode": {"type": "string", "enum": ["standard", "decision"],
                  "description": "Optional override. Omit to use the configured default advertised in this tool's description; standard is available for explicit ordinary selection or recovery."},
         "target": {"type": "string", "description": "Explicit browser target from browser targets; omit to use current chat target."},
@@ -94,6 +94,8 @@ class UIUseTool:
     async def execute(self, arguments):
         if not isinstance(arguments.get("task"), str) or not arguments["task"].strip() or arguments.get("surface") not in {"browser", "computer"}:
             return ToolResult(success=False, error={"type": "invalid_task", "message": "Provide a task and browser or computer surface"})
+        if not valid_conditions(arguments.get('success')):
+            return ToolResult(success=False, error={"type": "invalid_success_conditions", "message": "Provide expected text, exact url, or field/fields with a unique name and value or checked (true, false, mixed). No actions were taken."})
         surface = arguments["surface"]
         tool = "browser" if surface == "browser" else "computer"
         dispatch = self.coordinator.get_capability("tools.dispatch")

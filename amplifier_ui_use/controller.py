@@ -146,19 +146,50 @@ class Controller:
             return finish("unknown" if dispatched else "blocked", "execution_unconfirmed" if dispatched else "observation_or_selection_unavailable")
 
 
+def valid_conditions(conditions):
+    """Reject unverifiable caller assertions before dispatching any input."""
+    if not isinstance(conditions, dict) or not conditions or set(conditions) - {"text", "url", "field", "fields"}:
+        return False
+    for key in ('text', 'url'):
+        if key in conditions and (not isinstance(conditions[key], str) or not conditions[key].strip()):
+            return False
+    if 'field' in conditions and 'fields' in conditions:
+        return False
+    fields = conditions.get('fields', [conditions['field']] if 'field' in conditions else [])
+    if not isinstance(fields, list) or len(fields) > 120 or 'fields' in conditions and not fields:
+        return False
+    names = set()
+    for field in fields:
+        if (not isinstance(field, dict) or set(field) - {'name', 'value', 'checked'}
+                or not isinstance(field.get('name'), str) or not field['name'].strip()
+                or not {'value', 'checked'} & field.keys() or field['name'] in names):
+            return False
+        if 'value' in field and not isinstance(field['value'], str):
+            return False
+        if 'checked' in field and not (type(field['checked']) is bool or field['checked'] == 'mixed'):
+            return False
+        names.add(field['name'])
+    return True
+
+
 async def verify_conditions(observation, conditions):
     """Deliberate caller assertions; no selector-provided success claim."""
-    if not isinstance(conditions, dict) or not conditions or set(conditions) - {"text", "url", "field"}:
+    if not valid_conditions(conditions):
         return False
     state = observation["state"]
     if "text" in conditions and (not isinstance(conditions["text"], str) or not conditions["text"] or conditions["text"] not in state.get("text", "")):
         return False
     if "url" in conditions and conditions["url"] != state.get("url"):
         return False
-    if "field" in conditions:
-        field = conditions["field"]
-        if not isinstance(field, dict) or set(field) != {"name", "value"}:
+    for field in conditions.get('fields', [conditions['field']] if 'field' in conditions else []):
+        matches = [row for row in state.get('elements', []) if row.get('name') == field['name']]
+        if len(matches) != 1:
             return False
-        if not any(row.get("name") == field["name"] and row.get("value") == field["value"] for row in state.get("elements", [])):
+        row = matches[0]
+        if 'value' in field and row.get('value') != field['value']:
             return False
+        if 'checked' in field:
+            actual = 'mixed' if row.get('indeterminate') is True else row.get('checked')
+            if type(actual) is not type(field['checked']) or actual != field['checked']:
+                return False
     return True
