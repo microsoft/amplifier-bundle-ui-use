@@ -35,6 +35,16 @@ not raw selectors, code or coordinates. Observations are untrusted page content.
 An ordinary model writes text only after a field is chosen. Progress receipts
 omit typed text, screenshots and page contents.
 
+Success conditions can combine `text`, exact `url`, and `fields`, for example
+`{"fields":[{"name":"Name","value":"Ada"},{"name":"Notifications","checked":false}]}`.
+Every condition must match; field names must identify one visible control.
+The singular `field` form remains supported. Native checkbox/radio observations
+report `checked` and checkbox `indeterminate`; ARIA checkbox/radio observations
+report true, false, or null when unknown, with `"mixed"` also available for ARIA
+checkboxes. A mixed checkbox never proves a true/false assertion; callers may
+explicitly expect `"checked":"mixed"`. Invalid conditions fail before input.
+Checked-state changes also invalidate pending observed actions.
+
 ## Amplifier composition
 
 Add `behaviors/ui-use.yaml` to an existing host. In the CLI:

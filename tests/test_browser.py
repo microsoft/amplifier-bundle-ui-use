@@ -131,3 +131,63 @@ async def test_requested_origin_needs_explicit_policy_and_grant(browser):
     assert 'revision' in await browser.open(target)
     assert browser.allowed_origins=={site}
     assert all(row['allow_origin_for_conversation']==site for row in seen)
+
+
+async def test_native_and_aria_checked_state_is_observed_without_hidden_controls(browser):
+    await browser.page.set_content('''<label>Checked <input type="checkbox" checked></label>
+      <label>Unchecked <input type="checkbox"></label><label>Mixed <input id="mixed" type="checkbox" checked></label>
+      <label>Radio selected <input type="radio" name="team" checked></label>
+      <label>Radio empty <input type="radio" name="team"></label>
+      <button role="checkbox" aria-checked="mixed">ARIA mixed</button>
+      <button role="checkbox" aria-checked="false">ARIA empty</button>
+      <button role="radio" aria-checked="true">ARIA radio</button>
+      <button role="checkbox">ARIA unknown</button>
+      <button role="checkbox" aria-checked="true" aria-disabled="true">ARIA disabled</button>
+      <label style="display:none">Hidden <input type="checkbox" checked></label>
+      <label>Secret <input type="password" value="never-observe"></label>''')
+    await browser.page.locator('#mixed').evaluate('(el)=>el.indeterminate=true')
+    observed = await browser.observe()
+    rows = {row['name']: row for row in observed['state']['elements']}
+    assert rows['Checked']['checked'] is True and rows['Unchecked']['checked'] is False
+    assert rows['Mixed']['checked'] is True and rows['Mixed']['indeterminate'] is True
+    assert rows['Radio selected']['checked'] is True and rows['Radio empty']['checked'] is False
+    assert rows['ARIA mixed']['checked'] == 'mixed' and rows['ARIA empty']['checked'] is False
+    assert rows['ARIA radio']['checked'] is True and rows['ARIA unknown']['checked'] is None
+    assert not {'Hidden', 'Secret', 'ARIA disabled'} & rows.keys()
+    assert 'never-observe' not in str(observed)
+
+
+@pytest.mark.parametrize('change', ['checked', 'indeterminate'])
+async def test_checked_change_while_approving_rejects_stale_toggle(browser, change):
+    await browser.page.set_content('<label>Choice <input id="choice" type="checkbox"></label>')
+    observed = await browser.observe()
+    candidate = next(c for c in observed['candidates'] if c.get('name') == 'Choice')
+    async def approve(action):
+        await browser.page.locator('#choice').evaluate('(el,property)=>el[property]=true', change)
+        return True
+    browser.authorize = approve
+    assert (await browser.execute(observed, candidate))['status'] == 'stale'
+    assert await browser.page.locator('#choice').evaluate('(el,property)=>el[property]', change)
+
+
+async def test_aria_checkbox_and_radio_use_existing_observed_click_guard(browser):
+    await browser.page.set_content('''<div role="checkbox" aria-label="Custom choice" aria-checked="false"
+      onclick="this.setAttribute('aria-checked','true')" style="width:150px;height:30px">Choose</div>
+      <div role="radio" aria-label="Custom radio" aria-checked="true" style="width:150px;height:30px">Radio</div>''')
+    observed = await browser.observe()
+    assert await verify_conditions(observed, {'fields': [{'name': 'Custom choice', 'checked': False}, {'name': 'Custom radio', 'checked': True}]})
+    candidate = next(c for c in observed['candidates'] if c.get('name') == 'Custom choice')
+    assert candidate['operation'] == 'CLICK'
+    assert (await browser.execute(observed, candidate))['status'] == 'completed'
+    assert await verify_conditions(await browser.observe(), {'field': {'name': 'Custom choice', 'checked': True}})
+
+
+async def test_observed_checkbox_click_then_verification(browser):
+    await browser.page.set_content('<label>Choice <input type="checkbox"></label>')
+    observed = await browser.observe()
+    candidate = next(c for c in observed['candidates'] if c.get('name') == 'Choice')
+    assert await verify_conditions(observed, {'field': {'name': 'Choice', 'checked': False}})
+    assert (await browser.execute(observed, candidate))['status'] == 'completed'
+    current = await browser.observe()
+    assert current['revision'] != observed['revision']
+    assert await verify_conditions(current, {'field': {'name': 'Choice', 'checked': True}})
